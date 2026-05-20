@@ -7,15 +7,17 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const autopilotSkill = readFileSync(join(__dirname, '../../../skills/autopilot/SKILL.md'), 'utf-8');
 
-describe('autopilot skill strict 3-phase contract', () => {
-  it('makes ralplan -> ralph -> code-review the primary contract', () => {
-    assert.match(autopilotSkill, /\$ralplan\s*->\s*\$ralph\s*->\s*\$code-review/);
-    assert.match(autopilotSkill, /strict autonomous delivery loop/i);
+describe('autopilot skill default Ultragoal contract', () => {
+  it('makes deep-interview -> ralplan -> ultragoal -> code-review -> ultraqa the recommended/default contract', () => {
+    assert.match(autopilotSkill, /\$deep-interview\s*->\s*\$ralplan\s*->\s*\$ultragoal\s*\(\+ \$team if needed\)\s*->\s*\$code-review\s*->\s*\$ultraqa/);
+    assert.match(autopilotSkill, /recommended\/default contract/i);
+    assert.match(autopilotSkill, /Ralph is a legacy\/explicit alternate execution loop only/i);
   });
 
-  it('returns non-clean code-review findings to ralplan', () => {
-    assert.match(autopilotSkill, /If `\$code-review` is not clean, Autopilot returns to `\$ralplan`/i);
+  it('returns non-clean code-review or ultraqa findings to ralplan', () => {
+    assert.match(autopilotSkill, /If `\$code-review` or `\$ultraqa` is not clean, Autopilot returns to `\$ralplan`/i);
     assert.match(autopilotSkill, /COMMENT.*REQUEST CHANGES.*WATCH.*BLOCK/s);
+    assert.match(autopilotSkill, /UltraQA finds issues.*transition back to Phase `ralplan`/s);
   });
 
   it('requires tight phase, cycle, handoff, review state fields', () => {
@@ -26,6 +28,7 @@ describe('autopilot skill strict 3-phase contract', () => {
       'phase_cycle',
       'handoff_artifacts',
       'review_verdict',
+      'qa_verdict',
       'return_to_ralplan_reason',
     ]) {
       assert.match(autopilotSkill, new RegExp(field));
@@ -37,5 +40,6 @@ describe('autopilot skill strict 3-phase contract', () => {
     assert.doesNotMatch(autopilotSkill, /Phase 0 - Expansion/i);
     assert.doesNotMatch(autopilotSkill, /Phase 4 - Validation/i);
     assert.match(autopilotSkill, /must not run a separate broad expansion\/planning\/execution\/QA\/validation lifecycle as its primary behavior/i);
+    assert.doesNotMatch(autopilotSkill, /primary contract is exactly:\n\n```text\n\$ralplan\s*->\s*\$ralph\s*->\s*\$code-review/);
   });
 });

@@ -132,7 +132,7 @@ const EXECUTION_LIKE_WORKFLOW_SKILLS = new Set<TrackedWorkflowMode>([
 
 const STATEFUL_SKILL_SEED_CONFIG: Record<StatefulSkillMode, StatefulSkillSeedConfig> = {
   'deep-interview': { mode: 'deep-interview', initialPhase: 'intent-first' },
-  autopilot: { mode: 'autopilot', initialPhase: 'ralplan', includeIteration: true },
+  autopilot: { mode: 'autopilot', initialPhase: 'deep-interview', includeIteration: true },
   autoresearch: { mode: 'autoresearch', initialPhase: 'executing' },
   ralph: { mode: 'ralph', initialPhase: 'starting', includeIteration: true },
   ralplan: { mode: 'ralplan', initialPhase: 'planning' },
@@ -395,15 +395,20 @@ async function persistStatefulSkillSeedState(
     baseState.review_cycle = typeof existingModeState?.review_cycle === 'number' ? existingModeState.review_cycle : 0;
     baseState.state = {
       ...existingState,
-      phase_cycle: Array.isArray(existingState.phase_cycle) ? existingState.phase_cycle : ['ralplan', 'ralph', 'code-review'],
+      phase_cycle: Array.isArray(existingState.phase_cycle) ? existingState.phase_cycle : ['deep-interview', 'ralplan', 'ultragoal', 'code-review', 'ultraqa'],
       handoff_artifacts: {
+        deep_interview: null,
         ralplan: null,
-        ralph: null,
+        ultragoal: null,
         code_review: null,
+        ultraqa: null,
         ...existingHandoffs,
       },
       review_verdict: Object.prototype.hasOwnProperty.call(existingState, 'review_verdict')
         ? existingState.review_verdict
+        : null,
+      qa_verdict: Object.prototype.hasOwnProperty.call(existingState, 'qa_verdict')
+        ? existingState.qa_verdict
         : null,
       return_to_ralplan_reason: Object.prototype.hasOwnProperty.call(existingState, 'return_to_ralplan_reason')
         ? existingState.return_to_ralplan_reason

@@ -12,13 +12,13 @@ import {
 } from '../../team/followup-planner.js';
 
 export interface RalphVerifyStageOptions {
-  /** Stage name. Strict Autopilot uses 'ralph'; legacy pipeline adapters use 'ralph-verify'. */
+  /** Stage name. Explicit legacy Ralph paths use 'ralph'; legacy pipeline adapters use 'ralph-verify'. */
   stageName?: string;
 
   /**
    * Ordered artifact keys used as Ralph execution input.
-   * Legacy ralph-verify keeps reading prior ralph/team-exec output; strict Autopilot
-   * Ralph reads ralplan first so implementation starts from approved planning.
+   * Legacy ralph-verify keeps reading prior ralph/team-exec output; explicit legacy
+   * Ralph execution reads ralplan first so implementation starts from approved planning.
    */
   executionArtifactKeys?: readonly string[];
 
@@ -33,7 +33,7 @@ export interface RalphVerifyStageOptions {
  * Create a ralph-verify pipeline stage.
  *
  * This stage wraps the ralph persistence loop for the verification phase
- * of legacy pipelines. Strict Autopilot uses `createRalphStage()` for the
+ * of legacy pipelines. Explicit legacy Ralph execution uses `createRalphStage()` for the
  * implementation/verification phase before code-review.
  *
  * The iteration count is configurable, addressing issue #396 requirement
@@ -129,7 +129,7 @@ function pickFirstArtifact(
   return undefined;
 }
 
-/** Create the strict Autopilot Ralph phase adapter. */
+/** Create the explicit legacy Ralph execution phase adapter. */
 export function createRalphStage(options: RalphVerifyStageOptions = {}): PipelineStage {
   return createRalphVerifyStage({
     ...options,

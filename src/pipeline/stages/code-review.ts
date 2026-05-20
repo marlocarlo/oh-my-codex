@@ -1,5 +1,5 @@
 /**
- * Code-review stage adapter for the strict Autopilot loop.
+ * Code-review stage adapter for the default Autopilot loop.
  *
  * The stage produces a descriptor/instruction for the existing `$code-review`
  * skill and reports whether the latest review is clean. A non-clean review is
@@ -24,7 +24,7 @@ export interface CodeReviewDescriptor {
   task: string;
   cwd: string;
   sessionId?: string;
-  ralphArtifacts: Record<string, unknown>;
+  executionArtifacts: Record<string, unknown>;
   instruction: string;
 }
 
@@ -41,12 +41,14 @@ export function createCodeReviewStage(options: CodeReviewStageOptions = {}): Pip
 
     async run(ctx: StageContext): Promise<StageResult> {
       const startTime = Date.now();
-      const ralphArtifacts = ctx.artifacts.ralph as Record<string, unknown> | undefined;
+      const executionArtifacts = (ctx.artifacts.ultragoal as Record<string, unknown> | undefined)
+        ?? (ctx.artifacts.ralph as Record<string, unknown> | undefined)
+        ?? {};
       const descriptor: CodeReviewDescriptor = {
         task: ctx.task,
         cwd: ctx.cwd,
         sessionId: ctx.sessionId,
-        ralphArtifacts: ralphArtifacts ?? {},
+        executionArtifacts,
         instruction: buildCodeReviewInstruction(ctx.task),
       };
       const hasReviewEvidence = options.recommendation !== undefined || options.architecturalStatus !== undefined;

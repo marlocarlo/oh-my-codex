@@ -1,19 +1,21 @@
 /**
  * Pipeline Orchestrator for oh-my-codex
  *
- * Sequences configurable stages (ralplan -> ralph -> code-review)
+ * Sequences configurable stages (deep-interview -> ralplan -> ultragoal -> code-review -> ultraqa)
  * and persists state through the ModeState system.
  *
  * Mirrors OMC #1130 pipeline design with OMX-specific adaptations:
- * - Ralph iteration count is configurable
+ * - Legacy Ralph iteration count is configurable
  * - Code review is the merge-readiness gate
  * - Non-clean review artifacts can drive a return to ralplan
  */
 
 import { startMode, readModeState, updateModeState, cancelMode } from '../modes/base.js';
+import { createDeepInterviewStage } from './stages/deep-interview.js';
 import { createRalplanStage } from './stages/ralplan.js';
-import { createRalphStage } from './stages/ralph-verify.js';
+import { createUltragoalStage } from './stages/ultragoal.js';
 import { createCodeReviewStage } from './stages/code-review.js';
+import { createUltraqaStage } from './stages/ultraqa.js';
 import { isNonCleanReviewVerdict } from './review-verdict.js';
 import type {
   PipelineConfig,
@@ -57,6 +59,7 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
     pipeline_agent_type: agentType,
     review_cycle: 0,
     review_verdict: null,
+    qa_verdict: null,
     return_to_ralplan_reason: null,
     handoff_artifacts: {},
   };
@@ -143,19 +146,28 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
 
     const resultArtifacts = result.artifacts as Record<string, unknown>;
     const reviewVerdict = stage.name === 'code-review' ? resultArtifacts.review_verdict : undefined;
-    const returnToRalplanReason = stage.name === 'code-review'
+    const qaVerdict = stage.name === 'ultraqa' ? resultArtifacts.qa_verdict : undefined;
+    const returnToRalplanReason = (stage.name === 'code-review' || stage.name === 'ultraqa')
       ? resultArtifacts.return_to_ralplan_reason as string | null | undefined
       : undefined;
     const reviewIsNotClean = stage.name === 'code-review'
       && result.status === 'completed'
       && isNonCleanReviewVerdict(reviewVerdict);
+    const qaIsNotClean = stage.name === 'ultraqa'
+      && result.status === 'completed'
+      && isNonCleanQaVerdict(qaVerdict);
+    const shouldReturnToRalplan = reviewIsNotClean || qaIsNotClean;
 
     if (stage.name === 'code-review') {
       artifacts.review_verdict = reviewVerdict ?? null;
       artifacts.return_to_ralplan_reason = returnToRalplanReason ?? null;
     }
+    if (stage.name === 'ultraqa') {
+      artifacts.qa_verdict = qaVerdict ?? null;
+      artifacts.return_to_ralplan_reason = returnToRalplanReason ?? null;
+    }
 
-    if (reviewIsNotClean) {
+    if (shouldReturnToRalplan) {
       reviewCycle += 1;
     }
 
@@ -163,14 +175,19 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
 
     // Persist stage result
     await updateModeState(MODE_NAME, {
-      current_phase: reviewIsNotClean ? 'ralplan' : (result.status === 'completed' ? stage.name : `${stage.name}:${result.status}`),
+      current_phase: shouldReturnToRalplan ? 'ralplan' : (result.status === 'completed' ? stage.name : `${stage.name}:${result.status}`),
       handoff_artifacts: handoffArtifacts,
       ...(stage.name === 'code-review' ? {
         review_verdict: reviewVerdict,
         return_to_ralplan_reason: returnToRalplanReason ?? null,
         review_cycle: reviewCycle,
       } : {}),
-      pipeline_stage_index: reviewIsNotClean ? 0 : i,
+      ...(stage.name === 'ultraqa' ? {
+        qa_verdict: qaVerdict,
+        return_to_ralplan_reason: returnToRalplanReason ?? null,
+        review_cycle: reviewCycle,
+      } : {}),
+      pipeline_stage_index: shouldReturnToRalplan ? 0 : i,
       pipeline_stage_results: { ...stageResults },
     } as Partial<PipelineModeStateExtension>, cwd);
 
@@ -195,11 +212,11 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
       };
     }
 
-    if (reviewIsNotClean) {
+    if (shouldReturnToRalplan) {
       if (reviewCycle >= maxRalphIterations) {
         const error = returnToRalplanReason
-          ? `Code review was not clean after ${reviewCycle} cycle(s): ${returnToRalplanReason}`
-          : `Code review was not clean after ${reviewCycle} cycle(s).`;
+          ? `Autopilot quality gates were not clean after ${reviewCycle} cycle(s): ${returnToRalplanReason}`
+          : `Autopilot quality gates were not clean after ${reviewCycle} cycle(s).`;
         const duration_ms = Date.now() - startTime;
 
         await updateModeState(MODE_NAME, {
@@ -285,6 +302,7 @@ export async function readPipelineState(
     pipeline_agent_type: state.pipeline_agent_type as string,
     review_cycle: state.review_cycle as number | undefined,
     review_verdict: state.review_verdict,
+    qa_verdict: state.qa_verdict,
     return_to_ralplan_reason: state.return_to_ralplan_reason as string | null | undefined,
     handoff_artifacts: state.handoff_artifacts as Record<string, unknown> | undefined,
   };
@@ -310,7 +328,14 @@ function normalizeHandoffArtifactKeys(artifacts: Record<string, unknown>): Recor
 }
 
 function toHandoffArtifactKey(stageName: string): string {
-  return stageName === 'code-review' ? 'code_review' : stageName;
+  switch (stageName) {
+    case 'code-review':
+      return 'code_review';
+    case 'deep-interview':
+      return 'deep_interview';
+    default:
+      return stageName;
+  }
 }
 
 function validateConfig(config: PipelineConfig): void {
@@ -356,8 +381,9 @@ function validateConfig(config: PipelineConfig): void {
 /**
  * Create the default autopilot pipeline configuration.
  *
- * Sequences: ralplan -> ralph -> code-review.
- * This is the strict Autopilot loop required by the skill contract.
+ * Sequences: deep-interview -> ralplan -> ultragoal -> code-review -> ultraqa.
+ * This is the default Autopilot loop required by the skill contract.
+ * Custom stages can still preserve explicit legacy Ralph execution paths.
  */
 export function createAutopilotPipelineConfig(
   task: string,
@@ -385,5 +411,16 @@ export function createAutopilotPipelineConfig(
 }
 
 export function createStrictAutopilotStages(): PipelineConfig['stages'] {
-  return [createRalplanStage(), createRalphStage(), createCodeReviewStage()];
+  return [
+    createDeepInterviewStage(),
+    createRalplanStage(),
+    createUltragoalStage(),
+    createCodeReviewStage(),
+    createUltraqaStage(),
+  ];
+}
+
+function isNonCleanQaVerdict(verdict: unknown): boolean {
+  if (!verdict || typeof verdict !== 'object') return true;
+  return (verdict as { clean?: unknown }).clean !== true;
 }

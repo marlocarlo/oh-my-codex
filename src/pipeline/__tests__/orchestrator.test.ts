@@ -218,7 +218,7 @@ describe('Pipeline Orchestrator', () => {
 
       assert.equal(result.status, 'failed');
       assert.equal(result.failedStage, 'code-review');
-      assert.match(result.error ?? '', /Code review was not clean after 2 cycle/);
+      assert.match(result.error ?? '', /Autopilot quality gates were not clean after 2 cycle/);
     });
 
     it('passes artifacts between stages', async () => {
@@ -565,6 +565,7 @@ describe('Pipeline Orchestrator', () => {
       assert.equal(ext.pipeline_max_ralph_iterations, 5);
       assert.equal(ext.pipeline_worker_count, 3);
       assert.equal(ext.pipeline_agent_type, 'analyst');
+      assert.equal(ext.qa_verdict, null);
     });
   });
 
@@ -583,13 +584,13 @@ describe('Pipeline Orchestrator', () => {
       assert.equal(config.maxRalphIterations, 10);
       assert.equal(config.workerCount, 2);
       assert.equal(config.agentType, 'executor');
-      assert.deepEqual(config.stages.map((stage) => stage.name), ['ralplan', 'ralph', 'code-review']);
+      assert.deepEqual(config.stages.map((stage) => stage.name), ['deep-interview', 'ralplan', 'ultragoal', 'code-review', 'ultraqa']);
     });
 
 
 
     it('exposes strict default autopilot stages', () => {
-      assert.deepEqual(createStrictAutopilotStages().map((stage) => stage.name), ['ralplan', 'ralph', 'code-review']);
+      assert.deepEqual(createStrictAutopilotStages().map((stage) => stage.name), ['deep-interview', 'ralplan', 'ultragoal', 'code-review', 'ultraqa']);
     });
 
     it('accepts custom overrides', () => {

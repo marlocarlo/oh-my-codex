@@ -6,10 +6,13 @@ import { basename, dirname, join, relative } from 'path';
 import { tmpdir } from 'os';
 import { existsSync } from 'fs';
 import type { StageContext } from '../types.js';
+import { createDeepInterviewStage, buildDeepInterviewInstruction } from '../stages/deep-interview.js';
 import { createRalplanStage } from '../stages/ralplan.js';
 import { createTeamExecStage, buildTeamInstruction } from '../stages/team-exec.js';
 import { createRalphVerifyStage, createRalphStage, buildRalphInstruction } from '../stages/ralph-verify.js';
 import { createCodeReviewStage, buildCodeReviewInstruction } from '../stages/code-review.js';
+import { createUltragoalStage, buildUltragoalInstruction } from '../stages/ultragoal.js';
+import { createUltraqaStage, buildUltraqaInstruction } from '../stages/ultraqa.js';
 import { buildFollowupStaffingPlan } from '../../team/followup-planner.js';
 import { packageRoot } from '../../utils/paths.js';
 
@@ -1188,15 +1191,15 @@ describe('Ralph Verify Stage', () => {
 // Strict Autopilot stage tests
 // ---------------------------------------------------------------------------
 
-describe('Strict Autopilot Ralph Stage', () => {
+describe('Explicit Legacy Ralph Stage', () => {
   beforeEach(async () => { await setup(); });
   afterEach(async () => { await cleanup(); });
 
-  it('uses the strict phase name ralph', () => {
+  it('uses the explicit legacy phase name ralph', () => {
     assert.equal(createRalphStage().name, 'ralph');
   });
 
-  it('uses ralplan artifacts as the primary strict ralph execution input', async () => {
+  it('uses ralplan artifacts as the primary explicit legacy Ralph execution input', async () => {
     const result = await createRalphStage().run(makeCtx({
       artifacts: {
         ralplan: { plan: 'approved plan' },
@@ -1209,15 +1212,63 @@ describe('Strict Autopilot Ralph Stage', () => {
   });
 });
 
+
+describe('Default Autopilot Ultragoal Stage Adapters', () => {
+  beforeEach(async () => { await setup(); });
+  afterEach(async () => { await cleanup(); });
+
+  it('creates a deep-interview descriptor and instruction', async () => {
+    const stage = createDeepInterviewStage();
+    assert.equal(stage.name, 'deep-interview');
+    const result = await stage.run(makeCtx());
+    const artifacts = result.artifacts as Record<string, unknown>;
+    assert.equal(artifacts.stage, 'deep-interview');
+    assert.match(artifacts.instruction as string, /^\$deep-interview /);
+    assert.match(buildDeepInterviewInstruction('clarify me'), /^\$deep-interview /);
+  });
+
+  it('creates an ultragoal descriptor with explicit team condition', async () => {
+    const stage = createUltragoalStage();
+    assert.equal(stage.name, 'ultragoal');
+    const result = await stage.run(makeCtx({ artifacts: { ralplan: { plan: 'approved' } } }));
+    const artifacts = result.artifacts as Record<string, unknown>;
+    const descriptor = artifacts.ultragoalDescriptor as Record<string, unknown>;
+    assert.equal(artifacts.stage, 'ultragoal');
+    assert.deepEqual(descriptor.ralplanArtifacts, { plan: 'approved' });
+    assert.match(artifacts.team_condition as string, /Launch \$team only inside an active Ultragoal story/);
+    assert.match(buildUltragoalInstruction('execute me'), /^\$ultragoal /);
+  });
+
+  it('creates an ultraqa gate that fails closed without evidence and can record clean skips', async () => {
+    const missingEvidence = await createUltraqaStage().run(makeCtx({
+      artifacts: { ultragoal: { tests: 'passed' }, 'code-review': { review_verdict: { clean: true } } },
+    }));
+    const missingArtifacts = missingEvidence.artifacts as Record<string, unknown>;
+    const missingVerdict = missingArtifacts.qa_verdict as Record<string, unknown>;
+    assert.equal(missingVerdict.clean, false);
+    assert.equal(missingArtifacts.return_to_ralplan_reason, 'UltraQA evidence missing; fail closed and return to ralplan.');
+
+    const skipped = await createUltraqaStage({ skipped: true, summary: 'Docs-only change; QA not applicable.' }).run(makeCtx());
+    const skippedArtifacts = skipped.artifacts as Record<string, unknown>;
+    const skippedVerdict = skippedArtifacts.qa_verdict as Record<string, unknown>;
+    assert.equal(skippedVerdict.clean, true);
+    assert.equal(skippedVerdict.skipped, true);
+    assert.equal(skippedArtifacts.return_to_ralplan_reason, null);
+    assert.match(buildUltraqaInstruction('qa me'), /^\$ultraqa /);
+  });
+});
+
 describe('Code Review Stage', () => {
   beforeEach(async () => { await setup(); });
   afterEach(async () => { await cleanup(); });
 
-  it('creates a strict code-review stage that fails closed without review evidence', async () => {
+  it('creates a code-review stage that fails closed without review evidence', async () => {
     const stage = createCodeReviewStage();
     assert.equal(stage.name, 'code-review');
-    const result = await stage.run(makeCtx({ artifacts: { ralph: { tests: 'passed' } } }));
+    const result = await stage.run(makeCtx({ artifacts: { ultragoal: { tests: 'passed' } } }));
     const artifacts = result.artifacts as Record<string, unknown>;
+    const descriptor = artifacts.codeReviewDescriptor as Record<string, unknown>;
+    assert.deepEqual(descriptor.executionArtifacts, { tests: 'passed' });
     const verdict = artifacts.review_verdict as Record<string, unknown>;
     assert.equal(result.status, 'completed');
     assert.equal(verdict.clean, false);

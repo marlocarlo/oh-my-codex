@@ -553,18 +553,20 @@ describe('keyword detector skill-active-state lifecycle', () => {
           phase_cycle: string[];
           handoff_artifacts: Record<string, unknown>;
           review_verdict: unknown;
+          qa_verdict: unknown;
           return_to_ralplan_reason: string | null;
         };
       };
       assert.equal(modeState.mode, 'autopilot');
       assert.equal(modeState.active, true);
-      assert.equal(modeState.current_phase, 'ralplan');
+      assert.equal(modeState.current_phase, 'deep-interview');
       assert.equal(modeState.iteration, 1);
       assert.equal(modeState.review_cycle, 0);
       assert.equal(modeState.max_iterations, 10);
-      assert.deepEqual(modeState.state.phase_cycle, ['ralplan', 'ralph', 'code-review']);
-      assert.deepEqual(modeState.state.handoff_artifacts, { ralplan: null, ralph: null, code_review: null });
+      assert.deepEqual(modeState.state.phase_cycle, ['deep-interview', 'ralplan', 'ultragoal', 'code-review', 'ultraqa']);
+      assert.deepEqual(modeState.state.handoff_artifacts, { deep_interview: null, ralplan: null, ultragoal: null, code_review: null, ultraqa: null });
       assert.equal(modeState.state.review_verdict, null);
+      assert.equal(modeState.state.qa_verdict, null);
       assert.equal(modeState.state.return_to_ralplan_reason, null);
     } finally {
       await rm(cwd, { recursive: true, force: true });

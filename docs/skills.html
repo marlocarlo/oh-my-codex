@@ -33,7 +33,7 @@
       <ul>
         <li><code>$team</code> - coordinated multi-agent execution for the approved plan</li>
         <li><code>$ralph</code> - persistence loop until completion</li>
-        <li><code>$autopilot</code> - strict autonomous loop over <code>$ralplan -> $ralph -> $code-review</code>, returning to planning when review is not clean</li>
+        <li><code>$autopilot</code> - strict autonomous loop over <code>$deep-interview -> $ralplan -> $ultragoal (+ $team if needed) -> $code-review -> $ultraqa</code>, returning to planning when review or QA is not clean</li>
         <li><code>$ultrawork</code> - max parallel execution</li>
         <li><code>$ultragoal</code> - durable multi-goal planning and execution over <code>.omx/ultragoal</code> artifacts plus Codex goal handoff</li>
         <li><code>$visual-verdict</code> - structured visual QA loop for screenshot/reference matching</li>

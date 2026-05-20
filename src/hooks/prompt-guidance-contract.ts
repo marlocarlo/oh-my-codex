@@ -361,13 +361,14 @@ export const PROMPT_REFACTOR_INVARIANT_CONTRACTS: GuidanceSurfaceContract[] = [
     ],
   },
   {
-    id: 'autopilot-strict-3phase-loop',
+    id: 'autopilot-default-ultragoal-loop',
     path: 'skills/autopilot/SKILL.md',
     requiredPatterns: [
-      rx('\\$ralplan\\s*->\\s*\\$ralph\\s*->\\s*\\$code-review'),
+      rx('\\$deep-interview\\s*->\\s*\\$ralplan\\s*->\\s*\\$ultragoal.*\\$code-review\\s*->\\s*\\$ultraqa'),
       rx('return[s]? to `?\\$ralplan`?|current_phase.*ralplan'),
       rx('review_cycle'),
       rx('review_verdict'),
+      rx('qa_verdict'),
       rx('return_to_ralplan_reason'),
     ],
   },
