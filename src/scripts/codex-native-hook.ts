@@ -2005,6 +2005,22 @@ function reportsAutoresearchGoalObjectiveMismatch(text: string): boolean {
     && /objective mismatch/i.test(text);
 }
 
+function reportsBlockedPerformanceGoalObjectiveMismatch(state: unknown): boolean {
+  const performanceState = safeObject(state);
+  const lastValidation = safeObject(performanceState.lastValidation);
+  if (safeString(performanceState.workflow) !== "performance-goal") return false;
+  if (safeString(performanceState.status) !== "blocked") return false;
+  if (safeString(lastValidation.status) !== "blocked") return false;
+
+  const evidence = [
+    safeString(lastValidation.evidence),
+    safeString(lastValidation.message),
+    safeString(performanceState.evidence),
+    safeString(performanceState.message),
+  ].join(" ");
+  return /objective mismatch/i.test(evidence);
+}
+
 async function findActiveGoalWorkflowReconciliationRequirement(cwd: string): Promise<{ workflow: string; command: string; remediation?: string } | null> {
   const ultragoal = await readJsonIfExists(join(cwd, ".omx", "ultragoal", "goals.json"));
   const aggregateCompletion = safeObject(ultragoal?.aggregateCompletion);
@@ -2032,6 +2048,9 @@ async function findActiveGoalWorkflowReconciliationRequirement(cwd: string): Pro
     if (!entry.isDirectory()) continue;
     const state = await readJsonIfExists(join(performanceRoot, entry.name, "state.json"));
     const status = safeString(state?.status);
+    if (reportsBlockedPerformanceGoalObjectiveMismatch(state)) {
+      continue;
+    }
     if (state?.workflow === "performance-goal" && status && status !== "complete") {
       return {
         workflow: "performance-goal",

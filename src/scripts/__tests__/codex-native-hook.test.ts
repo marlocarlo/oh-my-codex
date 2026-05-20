@@ -1773,6 +1773,66 @@ describe("codex native hook dispatch", () => {
     }
   });
 
+  it("does not repeat performance-goal reconciliation after a recorded objective mismatch blocker", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-performance-mismatch-blocked-stop-"));
+    try {
+      await writeJson(join(cwd, ".omx", "goals", "performance", "latency", "state.json"), {
+        version: 1,
+        workflow: "performance-goal",
+        slug: "latency",
+        objective: "Reduce latency",
+        status: "blocked",
+        lastValidation: {
+          status: "blocked",
+          evidence: "omx performance-goal complete rejected the fresh get_goal snapshot: Codex goal objective mismatch: expected \"reduce latency\", got \"legacy objective\".",
+          recordedAt: "2026-05-20T00:00:00.000Z",
+        },
+      });
+
+      const result = await dispatchCodexNativeHook({
+        hook_event_name: "Stop",
+        cwd,
+        session_id: "sess-performance-mismatch-blocked-stop",
+        thread_id: "thread-performance-mismatch-blocked-stop",
+        last_assistant_message: "Performance goal complete; next call update_goal({status: \"complete\"}).",
+      }, { cwd });
+
+      assert.notEqual(result.outputJson?.decision, "block");
+      assert.doesNotMatch(JSON.stringify(result.outputJson), /omx performance-goal complete --slug latency/);
+      assert.doesNotMatch(JSON.stringify(result.outputJson), /get_goal snapshot reconciliation/);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("does not block Stop for an already complete performance-goal state", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-performance-complete-stop-"));
+    try {
+      await writeJson(join(cwd, ".omx", "goals", "performance", "latency", "state.json"), {
+        version: 1,
+        workflow: "performance-goal",
+        slug: "latency",
+        objective: "Reduce latency",
+        status: "complete",
+        completedAt: "2026-05-20T00:00:00.000Z",
+      });
+
+      const result = await dispatchCodexNativeHook({
+        hook_event_name: "Stop",
+        cwd,
+        session_id: "sess-performance-complete-stop",
+        thread_id: "thread-performance-complete-stop",
+        last_assistant_message: "Performance goal complete; next call update_goal({status: \"complete\"}).",
+      }, { cwd });
+
+      assert.notEqual(result.outputJson?.decision, "block");
+      assert.doesNotMatch(JSON.stringify(result.outputJson), /omx performance-goal complete --slug latency/);
+      assert.doesNotMatch(JSON.stringify(result.outputJson), /get_goal snapshot reconciliation/);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("blocks ultragoal Stop for concise generic goal completion claims", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-ultragoal-generic-complete-stop-"));
     try {
